@@ -8,9 +8,11 @@ import android.content.ClipData;
 import android.content.ContentResolver;
 import android.content.Context;
 import android.content.res.AssetFileDescriptor;
+import android.database.Cursor;
 import android.net.Uri;
 import android.os.Handler;
 import android.os.Looper;
+import android.provider.OpenableColumns;
 import android.util.Log;
 
 import androidx.annotation.Keep;
@@ -61,6 +63,49 @@ public final class ClipDataHelper {
     }
 
     native void onData(int handle, Object data);
+
+    public void getDisplayNameAsync(ClipData data, int index, Context context, int handle) {
+        ExecutorService executor = Executors.newSingleThreadExecutor();
+
+        executor.execute(() -> {
+            String res = null;
+            try {
+                res = getDisplayName(data, index, context);
+            } catch (Exception e) {
+                Log.w("ClipData", "getDisplayName failed", e);
+            }
+            onDisplayName(handle, res);
+        });
+    }
+
+    native void onDisplayName(int handle, String name);
+
+    @Nullable
+    public String getDisplayName(ClipData data, int index, Context context) {
+        if (index >= data.getItemCount()) {
+            return null;
+        }
+        ClipData.Item item = data.getItemAt(index);
+        Uri uri = item.getUri();
+        if (uri == null || !SCHEME_CONTENT.equals(uri.getScheme())) {
+            return null;
+        }
+
+        try (Cursor cursor = context.getContentResolver().query(
+                uri,
+                new String[]{OpenableColumns.DISPLAY_NAME},
+                null, null, null)) {
+            if (cursor != null && cursor.moveToFirst()) {
+                int idx = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME);
+                if (idx >= 0) {
+                    return cursor.getString(idx);
+                }
+            }
+        } catch (Exception e) {
+            Log.w("ClipData", "Failed to get display name", e);
+        }
+        return null;
+    }
 
     public Object _getData(ClipData data, int index, String type, Context context) {
         if (index < data.getItemCount()) {

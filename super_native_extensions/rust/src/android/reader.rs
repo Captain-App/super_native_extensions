@@ -99,6 +99,12 @@ impl PlatformDataReader {
         &self,
         item: i64,
     ) -> NativeExtensionsResult<Option<String>> {
+        // 1. Try to get display name via ContentResolver query
+        if let Some(name) = self.get_display_name_for_item(item).await? {
+            return Ok(Some(name));
+        }
+
+        // 2. Fallback to existing path segment parsing
         let formats = self.get_formats_for_item_sync(item)?;
         if formats.iter().any(|s| s == MIME_TYPE_URI_LIST) {
             let uri = self
@@ -114,6 +120,42 @@ impl PlatformDataReader {
             }
         }
         Ok(None)
+    }
+
+    async fn get_display_name_for_item(&self, item: i64) -> NativeExtensionsResult<Option<String>> {
+        match &self.clip_data {
+            Some(clip_data) => {
+                let (future, completer) = FutureCompleter::new();
+                let (mut env, context) = Self::get_env_and_context()?;
+
+                let handle = Self::NEXT_HANDLE.with(|h| {
+                    let res = h.get();
+                    h.set(res + 1);
+                    res
+                });
+                Self::PENDING.with(|m| m.borrow_mut().insert(handle, completer));
+
+                env.call_method(
+                    CLIP_DATA_HELPER.get().unwrap().as_obj(),
+                    "getDisplayNameAsync",
+                    "(Landroid/content/ClipData;ILandroid/content/Context;I)V",
+                    &[
+                        clip_data.as_obj().into(),
+                        (item as i32).into(),
+                        context.into(),
+                        (handle as i32).into(),
+                    ],
+                )?;
+
+                let res = future.await?;
+                if let Value::String(name) = res {
+                    Ok(Some(name))
+                } else {
+                    Ok(None)
+                }
+            }
+            None => Ok(None),
+        }
     }
 
     pub async fn get_formats_for_item(&self, item: i64) -> NativeExtensionsResult<Vec<String>> {
@@ -154,6 +196,33 @@ impl PlatformDataReader {
             }
         };
         let result: Result<Value, NativeExtensionsError> = data();
+
+        sender.send(move || {
+            let completer = Self::PENDING.with(|m| m.borrow_mut().remove(&(handle as i64)));
+            if let Some(completer) = completer {
+                completer.complete(result);
+            }
+        });
+    }
+
+    #[no_mangle]
+    #[allow(non_snake_case)]
+    pub extern "C" fn Java_com_superlist_super_1native_1extensions_ClipDataHelper_onDisplayName(
+        mut env: jni::JNIEnv,
+        _class: jni::objects::JClass,
+        handle: jint,
+        name: jni::objects::JString,
+    ) {
+        let sender = RunLoop::sender_for_main_thread().unwrap();
+        let name = move || {
+            if env.is_same_object(&name, JObject::null())? {
+                Ok(Value::Null)
+            } else {
+                let name = env.get_string(&name)?;
+                Ok(Value::String(name.into()))
+            }
+        };
+        let result: Result<Value, NativeExtensionsError> = name();
 
         sender.send(move || {
             let completer = Self::PENDING.with(|m| m.borrow_mut().remove(&(handle as i64)));
