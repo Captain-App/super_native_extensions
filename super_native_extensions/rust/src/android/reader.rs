@@ -214,7 +214,7 @@ impl PlatformDataReader {
         name: jni::objects::JString,
     ) {
         let sender = RunLoop::sender_for_main_thread().unwrap();
-        let name = move || {
+        let mut name = move || {
             if env.is_same_object(&name, JObject::null())? {
                 Ok(Value::Null)
             } else {
