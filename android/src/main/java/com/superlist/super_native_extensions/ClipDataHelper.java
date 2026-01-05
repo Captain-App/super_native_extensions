@@ -70,9 +70,9 @@ public final class ClipDataHelper {
         executor.execute(() -> {
             String res = null;
             try {
-                res = getDisplayName(data, index, context, handle);
+                res = getDisplayName(data, index, context);
             } catch (Exception e) {
-                Log.w("ClipData", "getDisplayName failed for handle " + handle, e);
+                Log.w("ClipData", "getDisplayName failed", e);
             }
             onDisplayName(handle, res);
         });
@@ -81,7 +81,7 @@ public final class ClipDataHelper {
     native void onDisplayName(int handle, String name);
 
     @Nullable
-    public String getDisplayName(ClipData data, int index, Context context, int handle) {
+    public String getDisplayName(ClipData data, int index, Context context) {
         if (index >= data.getItemCount()) {
             return null;
         }
@@ -91,47 +91,18 @@ public final class ClipDataHelper {
             return null;
         }
 
-        Log.d("ClipData", "Querying display name for handle " + handle + " and URI: " + uri.toString());
-
-        // Try standard OpenableColumns.DISPLAY_NAME first
-        String name = queryColumn(context, uri, OpenableColumns.DISPLAY_NAME, handle);
-        if (name != null) return name;
-
-        // Fallback to common columns used by some providers
-        name = queryColumn(context, uri, "_display_name", handle);
-        if (name != null) return name;
-
-        name = queryColumn(context, uri, "title", handle);
-        if (name != null) return name;
-
-        // Last resort: check if it's a file URI wrapped in a content provider
-        name = queryColumn(context, uri, "_data", handle);
-        if (name != null) {
-            String last = Uri.parse(name).getLastPathSegment();
-            if (last != null) return last;
-        }
-
-        Log.w("ClipData", "All column queries failed for handle " + handle + " and URI: " + uri.toString());
-        return null;
-    }
-
-    @Nullable
-    private String queryColumn(Context context, Uri uri, String column, int handle) {
         try (Cursor cursor = context.getContentResolver().query(
-                uri, new String[]{column}, null, null, null)) {
+                uri,
+                new String[]{OpenableColumns.DISPLAY_NAME},
+                null, null, null)) {
             if (cursor != null && cursor.moveToFirst()) {
-                int idx = cursor.getColumnIndex(column);
+                int idx = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME);
                 if (idx >= 0) {
-                    String res = cursor.getString(idx);
-                    if (res != null && !res.isEmpty()) {
-                        Log.d("ClipData", "Found display name for handle " + handle + " in column '" + column + "': " + res);
-                        return res;
-                    }
+                    return cursor.getString(idx);
                 }
             }
         } catch (Exception e) {
-            // Some columns might not exist, that's fine
-            Log.v("ClipData", "Column '" + column + "' not found or error for handle " + handle + " and URI: " + uri.toString());
+            Log.w("ClipData", "Failed to get display name", e);
         }
         return null;
     }
