@@ -3,7 +3,7 @@ use std::{
     collections::HashMap,
     path::PathBuf,
     rc::Rc,
-    sync::{Arc, Mutex},
+    sync::Arc,
 };
 
 use irondash_message_channel::Value;
@@ -14,7 +14,6 @@ use jni::{
     AttachGuard, JNIEnv,
 };
 
-use once_cell::sync::Lazy;
 use url::Url;
 
 use crate::{
@@ -25,10 +24,6 @@ use crate::{
 };
 
 use super::MIME_TYPE_URI_LIST;
-
-static NEXT_HANDLE: Lazy<Mutex<i64>> = Lazy::new(|| Mutex::new(1));
-static PENDING: Lazy<Mutex<HashMap<i64, FutureCompleter<NativeExtensionsResult<Value>>>>> =
-    Lazy::new(|| Mutex::new(HashMap::new()));
 
 pub struct PlatformDataReader {
     clip_data: Option<GlobalRef>,
@@ -133,14 +128,13 @@ impl PlatformDataReader {
                 let (future, completer) = FutureCompleter::new();
                 let (mut env, context) = Self::get_env_and_context()?;
 
-                let handle = {
-                    let mut next = NEXT_HANDLE.lock().unwrap();
-                    let h = *next;
-                    *next += 1;
-                    h
-                };
+                let handle = Self::NEXT_HANDLE.with(|h| {
+                    let res = h.get();
+                    h.set(res + 1);
+                    res
+                });
                 log::debug!("Creating display name handle: {}", handle);
-                PENDING.lock().unwrap().insert(handle, completer);
+                Self::PENDING.with(|m| m.borrow_mut().insert(handle, completer));
 
                 env.call_method(
                     CLIP_DATA_HELPER.get().unwrap().as_obj(),
@@ -174,6 +168,12 @@ impl PlatformDataReader {
         self.get_formats_for_item_sync(item)
     }
 
+    thread_local! {
+        static NEXT_HANDLE: Cell<i64> = const { Cell::new(1) };
+        static PENDING:
+            RefCell<HashMap<i64,irondash_run_loop::util::FutureCompleter<NativeExtensionsResult<Value>>>> = RefCell::new(HashMap::new());
+    }
+
     #[no_mangle]
     #[allow(non_snake_case)]
     pub extern "C" fn Java_com_superlist_super_1native_1extensions_ClipDataHelper_onData(
@@ -204,7 +204,7 @@ impl PlatformDataReader {
         let result: Result<Value, NativeExtensionsError> = data();
 
         sender.send(move || {
-            let completer = PENDING.lock().unwrap().remove(&(handle as i64));
+            let completer = Self::PENDING.with(|m| m.borrow_mut().remove(&(handle as i64)));
             if let Some(completer) = completer {
                 completer.complete(result);
             }
@@ -220,7 +220,7 @@ impl PlatformDataReader {
         name: jni::objects::JString,
     ) {
         let sender = RunLoop::sender_for_main_thread().unwrap();
-        let name_val = move || {
+        let mut name_val = move || {
             if env.is_same_object(&name, JObject::null())? {
                 Ok(Value::Null)
             } else {
@@ -232,7 +232,7 @@ impl PlatformDataReader {
 
         sender.send(move || {
             log::debug!("Completing display name handle: {}", handle);
-            let completer = PENDING.lock().unwrap().remove(&(handle as i64));
+            let completer = Self::PENDING.with(|m| m.borrow_mut().remove(&(handle as i64)));
             if let Some(completer) = completer {
                 completer.complete(result);
             }
@@ -250,13 +250,12 @@ impl PlatformDataReader {
                 let (future, completer) = FutureCompleter::new();
                 let (mut env, context) = Self::get_env_and_context()?;
 
-                let handle = {
-                    let mut next = NEXT_HANDLE.lock().unwrap();
-                    let h = *next;
-                    *next += 1;
-                    h
-                };
-                PENDING.lock().unwrap().insert(handle, completer);
+                let handle = Self::NEXT_HANDLE.with(|h| {
+                    let res = h.get();
+                    h.set(res + 1);
+                    res
+                });
+                Self::PENDING.with(|m| m.borrow_mut().insert(handle, completer));
 
                 let format_string = env.new_string(&format)?;
                 env.call_method(
