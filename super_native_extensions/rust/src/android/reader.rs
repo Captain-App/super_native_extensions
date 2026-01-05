@@ -147,11 +147,16 @@ impl PlatformDataReader {
                     ],
                 )?;
 
-                let res = future.await?;
-                if let Value::String(name) = res {
-                    Ok(Some(name))
-                } else {
-                    Ok(None)
+                // Wait for the JNI callback result
+                match future.await? {
+                    Value::String(name) => {
+                        if !name.is_empty() {
+                            Ok(Some(name))
+                        } else {
+                            Ok(None)
+                        }
+                    }
+                    _ => Ok(None),
                 }
             }
             None => Ok(None),

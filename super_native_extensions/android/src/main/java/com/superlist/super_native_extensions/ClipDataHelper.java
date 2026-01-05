@@ -91,18 +91,47 @@ public final class ClipDataHelper {
             return null;
         }
 
+        Log.d("ClipData", "Querying display name for URI: " + uri.toString());
+
+        // Try standard OpenableColumns.DISPLAY_NAME first
+        String name = queryColumn(context, uri, OpenableColumns.DISPLAY_NAME);
+        if (name != null) return name;
+
+        // Fallback to common columns used by some providers
+        name = queryColumn(context, uri, "_display_name");
+        if (name != null) return name;
+
+        name = queryColumn(context, uri, "title");
+        if (name != null) return name;
+
+        // Last resort: check if it's a file URI wrapped in a content provider
+        name = queryColumn(context, uri, "_data");
+        if (name != null) {
+            String last = Uri.parse(name).getLastPathSegment();
+            if (last != null) return last;
+        }
+
+        Log.w("ClipData", "All column queries failed for URI: " + uri.toString());
+        return null;
+    }
+
+    @Nullable
+    private String queryColumn(Context context, Uri uri, String column) {
         try (Cursor cursor = context.getContentResolver().query(
-                uri,
-                new String[]{OpenableColumns.DISPLAY_NAME},
-                null, null, null)) {
+                uri, new String[]{column}, null, null, null)) {
             if (cursor != null && cursor.moveToFirst()) {
-                int idx = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME);
+                int idx = cursor.getColumnIndex(column);
                 if (idx >= 0) {
-                    return cursor.getString(idx);
+                    String res = cursor.getString(idx);
+                    if (res != null && !res.isEmpty()) {
+                        Log.d("ClipData", "Found display name in column '" + column + "': " + res);
+                        return res;
+                    }
                 }
             }
         } catch (Exception e) {
-            Log.w("ClipData", "Failed to get display name", e);
+            // Some columns might not exist, that's fine
+            Log.v("ClipData", "Column '" + column + "' not found or error for URI: " + uri.toString());
         }
         return null;
     }
