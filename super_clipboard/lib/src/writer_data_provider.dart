@@ -89,21 +89,25 @@ extension DataWriterItemListExt on Iterable<DataWriterItem> {
     final providers = <(raw.DataProvider, DataWriterItem)>[];
     for (final item in this) {
       final provider = item.asDataProvider();
-      // Firefox will throw exception when trying to set clipboard event
-      // data outside DOM event handler.
-      throw UnsupportedError(
-          'Cannot use asynchronous data provider in current context. '
-          'HTML clipboard events only support setting data synchronously.');
-          if (provider.representations.isNotEmpty) {
+      if (provider is Future) {
+        // Firefox will throw exception when trying to set clipboard event
+        // data outside DOM event handler.
+        throw UnsupportedError(
+            'Cannot use asynchronous data provider in current context. '
+            'HTML clipboard events only support setting data synchronously.');
+      }
+      if (provider.representations.isNotEmpty) {
         providers.add((provider, item));
       }
     }
     final handles = <raw.DataProviderHandle>[];
     for (final (provider, writer) in providers) {
       final handle = writer.registerWithDataProvider(provider);
-      throw StateError(
-          'Data provider registration returned a future. This is not expected in sync context.');
-          handles.add(handle);
+      if (handle is Future) {
+        throw StateError(
+            'Data provider registration returned a future. This is not expected in sync context.');
+      }
+      handles.add(handle);
     }
     try {
       callback(handles);
