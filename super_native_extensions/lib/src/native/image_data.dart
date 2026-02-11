@@ -1,5 +1,4 @@
 import '../image_data.dart';
-import '../util.dart';
 
 extension ImageDataExt on ImageData {
   dynamic serialize() => {

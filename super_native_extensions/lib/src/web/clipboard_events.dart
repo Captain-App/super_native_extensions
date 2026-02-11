@@ -1,5 +1,4 @@
 import 'dart:js_interop';
-import 'dart:js_interop_unsafe';
 import 'package:web/web.dart' as web;
 
 import '../clipboard_events.dart';
