@@ -78,8 +78,8 @@ class ClipboardEventsImpl extends ClipboardEvents {
   ClipboardEventsImpl() {
     // Have no access to `registerHotRestartListener` so this needs to be done manually on startup.
     {
-      final listeners = web.window.getProperty(listenersProperty.toJS)
-          as JSArray<JSListener>?;
+      final listeners =
+          globalContext[listenersProperty] as JSArray<JSListener>?;
       if (listeners != null) {
         for (final listener in listeners.toDart) {
           web.window.removeEventListener(listener.type, listener.callback);
@@ -94,7 +94,7 @@ class ClipboardEventsImpl extends ClipboardEvents {
     for (final listener in listeners) {
       web.window.addEventListener(listener.type, listener.callback);
     }
-    web.window.setProperty(listenersProperty.toJS, listeners.toJS);
+    globalContext[listenersProperty] = listeners.toJS;
   }
 
   @override

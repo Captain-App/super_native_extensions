@@ -12,10 +12,10 @@ void main() {
     final context = DropContextImpl();
     await context.initialize();
     final listenersA =
-        web.document.getProperty(DropContextImpl.listenersProperty.toJS);
+        (web.document as JSObject)[DropContextImpl.listenersProperty];
     await context.initialize();
     final listenersB =
-        web.document.getProperty(DropContextImpl.listenersProperty.toJS);
+        (web.document as JSObject)[DropContextImpl.listenersProperty];
     expect(
       listenersB,
       hasLength(4),

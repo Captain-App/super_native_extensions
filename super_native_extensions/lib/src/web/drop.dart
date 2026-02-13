@@ -192,7 +192,7 @@ class DropContextImpl extends DropContext {
   @override
   Future<void> initialize() async {
     {
-      final listeners = web.document.getProperty(listenersProperty.toJS)
+      final listeners = (web.document as JSObject)[listenersProperty]
           as JSArray<JSListener>?;
       if (listeners != null) {
         for (final listener in listeners.toDart) {
@@ -254,7 +254,7 @@ class DropContextImpl extends DropContext {
     for (final listener in listeners) {
       web.document.addEventListener(listener.type, listener.callback);
     }
-    web.document.setProperty(listenersProperty.toJS, listeners.toJS);
+    (web.document as JSObject)[listenersProperty] = listeners.toJS;
   }
 
   @override

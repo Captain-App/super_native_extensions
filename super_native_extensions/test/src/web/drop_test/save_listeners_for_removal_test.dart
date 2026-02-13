@@ -13,7 +13,7 @@ void main() {
     final context = DropContextImpl();
     await context.initialize();
     expect(
-      web.document.getProperty(DropContextImpl.listenersProperty.toJS),
+      (web.document as JSObject)[DropContextImpl.listenersProperty],
       hasLength(4),
     );
   });

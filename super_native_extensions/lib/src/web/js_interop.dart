@@ -24,5 +24,5 @@ extension DataTransferItemExt on web.DataTransferItem {
 }
 
 bool get clipboardItemAvailable {
-  return web.window.getProperty('ClipboardItem'.toJS) != null;
+  return globalContext['ClipboardItem'] != null;
 }

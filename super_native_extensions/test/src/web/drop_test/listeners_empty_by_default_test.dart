@@ -10,7 +10,7 @@ import 'package:web/web.dart' as web;
 void main() {
   test('should have no listeners by default', () async {
     expect(
-      web.document.getProperty(DropContextImpl.listenersProperty.toJS),
+      (web.document as JSObject)[DropContextImpl.listenersProperty],
       isNull,
     );
   });

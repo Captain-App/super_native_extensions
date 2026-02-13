@@ -34,7 +34,7 @@ class ClipboardWriterImpl extends ClipboardWriter {
             type: repr.format,
           ),
         );
-        representations.setProperty(repr.format.toJS, value);
+        representations[repr.format] = value;
       } else if (repr is DataRepresentationLazy) {
         Future<web.Blob> fn() async {
           final data = await repr.dataProvider();
@@ -46,7 +46,7 @@ class ClipboardWriterImpl extends ClipboardWriter {
           );
         }
 
-        representations.setProperty(repr.format.toJS, fn().toJS);
+        representations[repr.format] = fn().toJS;
       }
     }
     return web.ClipboardItem(representations);
